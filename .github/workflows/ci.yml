@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [macos-latest, ubuntu-latest, windows-latest]
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Create empty 'dist' directory for macros
+        run: mkdir dist
+
+      - name: Setup rust (not ubuntu)
+        if: matrix.platform != 'ubuntu-latest'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup rust (ubuntu)
+        if: matrix.platform == 'ubuntu-latest'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Rustfmt Check
+        if: matrix.platform == 'ubuntu-latest'
+        uses: actions-rust-lang/rustfmt@v1
+        with:
+          manifest-path: src-tauri/Cargo.toml
+
+      - name: Install dependencies (ubuntu)
+        if: matrix.platform == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Check with Clippy
+        if: matrix.platform == 'ubuntu-latest'
+        run: cargo clippy --all-targets --all-features -- -D warnings
+        working-directory: src-tauri
+
+      - uses: pnpm/action-setup@v2
+        name: Install pnpm
+        with:
+          version: 8
+
+      - name: setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Run lint
+        if: matrix.platform == 'ubuntu-latest'
+        run: pnpm lint
