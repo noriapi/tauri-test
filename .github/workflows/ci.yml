@@ -73,3 +73,8 @@ jobs:
       - name: Run lint
         if: matrix.platform == 'ubuntu-latest'
         run: pnpm lint
+
+      - name: Build test
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
